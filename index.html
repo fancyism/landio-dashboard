@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Landio Content Bot — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#ffffff; --mist:#f6f8fa; --frost:#eceff3;
+  --border:#cdd2d9; --border2:#c1c7d0;
+  --fog:#a4abb8; --steel:#818898; --slate:#666d80;
+  --graphite:#36394a; --ink:#272835; --onyx:#1a1b25;
+  --ok:#3d6b4f; --okbg:#eef4f0; --err:#8c3a3a; --errbg:#f7eeee; --idle:#818898; --idlebg:#f6f8fa;
+  --r-card:12px; --r-btn:8px;
+  --shadow-card:rgba(39,40,53,.05) 0 0 0 1px;
+  --font-display:'Space Grotesk','Inter',sans-serif;
+  --font-body:'Inter',sans-serif;
+  --font-mono:'IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--mist);color:var(--graphite);font-family:var(--font-body);font-size:14px;line-height:1.55;letter-spacing:-.01em}
+a{color:inherit}
+
+/* ===== Layout ===== */
+.app{display:flex;min-height:100vh}
+.sidebar{width:232px;background:var(--canvas);border-right:1px solid var(--border);padding:20px 14px;position:fixed;top:0;bottom:0;left:0;display:flex;flex-direction:column;gap:4px;z-index:40;overflow-y:auto}
+.main{flex:1;margin-left:232px;padding:28px 36px 80px;max-width:1160px}
+
+/* ===== Sidebar ===== */
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 18px}
+.brand-mark{width:32px;height:32px;background:var(--onyx);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--font-display);font-weight:600;font-size:15px;flex:none}
+.brand-name{font-family:var(--font-display);font-weight:600;font-size:15px;letter-spacing:-.02em;color:var(--onyx);line-height:1.15}
+.brand-sub{font-size:11px;color:var(--steel);letter-spacing:.02em}
+.nav-label{font-size:11px;font-weight:600;color:var(--fog);letter-spacing:.08em;text-transform:uppercase;padding:14px 10px 6px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r-btn);color:var(--slate);font-weight:500;font-size:14px;cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--font-body)}
+.nav-item:hover{background:var(--mist);color:var(--graphite)}
+.nav-item.active{background:var(--onyx);color:#fff}
+.nav-item .ico{width:18px;text-align:center;font-size:14px;opacity:.85}
+.nav-count{margin-left:auto;font-size:11px;color:var(--steel);font-family:var(--font-mono)}
+.nav-item.active .nav-count{color:var(--fog)}
+.sidebar-foot{margin-top:auto;padding:10px;border-top:1px solid var(--border);font-size:11px;color:var(--steel)}
+.sync-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px}
+
+/* ===== Topbar (mobile) ===== */
+.topbar{display:none;position:sticky;top:0;background:var(--canvas);border-bottom:1px solid var(--border);padding:12px 16px;z-index:30;align-items:center;gap:12px}
+.topbar .brand-mark{width:28px;height:28px;font-size:13px}
+.hamburger{margin-left:auto;background:none;border:1px solid var(--border);border-radius:var(--r-btn);padding:6px 10px;font-size:16px;color:var(--graphite);cursor:pointer}
+.m-nav{display:none;position:sticky;top:53px;background:var(--canvas);border-bottom:1px solid var(--border);padding:8px 12px;gap:4px;z-index:29;max-height:70vh;overflow-y:auto}
+.m-nav.open{display:flex;flex-direction:column}
+.m-nav .nav-item{padding:11px 10px}
+
+/* ===== Header ===== */
+.page-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:22px}
+h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;letter-spacing:-.025em;color:var(--onyx);line-height:1.1}
+.page-desc{color:var(--slate);margin-top:4px;max-width:560px}
+.updated{font-size:12px;color:var(--steel)}
+.updated b{color:var(--graphite);font-weight:500}
+
+/* ===== KPI cards ===== */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:10px}
+.kpi{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px}
+.kpi .k-label{font-size:12px;color:var(--steel);font-weight:500}
+.kpi .k-value{font-family:var(--font-display);font-size:28px;font-weight:600;letter-spacing:-.02em;color:var(--onyx);line-height:1.15;margin-top:4px}
+.kpi .k-note{font-size:12px;color:var(--slate);margin-top:2px}
+.mini{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.mini>*{min-width:0}
+.mstat{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:12px 14px}
+.mstat .m-n{font-family:var(--font-display);font-size:19px;font-weight:600;color:var(--onyx);letter-spacing:-.01em;line-height:1.25;overflow-wrap:anywhere}
+.mstat .m-l{font-size:11px;color:var(--steel);margin-top:1px}
+
+/* ===== Swipe File ===== */
+.search{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-btn);padding:10px 14px;font-family:var(--font-body);font-size:14px;color:var(--graphite);margin-bottom:12px;outline:none}
+.search::placeholder{color:var(--fog)}
+.search:focus{border-color:var(--border2);box-shadow:0 0 0 2px rgba(39,40,53,.08)}
+.sw-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.sw-card{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px;display:flex;flex-direction:column;gap:8px}
+.sw-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sw-id{font-family:var(--font-mono);font-size:11px;color:var(--steel)}
+.sw-page{font-weight:600;color:var(--onyx);font-size:14px}
+.sw-hook{font-size:13px;color:var(--graphite);line-height:1.5}
+.sw-actions{display:flex;gap:8px;margin-top:2px;flex-wrap:wrap}
+.sw-actions .link-btn{padding:6px 10px;font-size:11.5px;text-decoration:none}
+
+/* ===== Panels ===== */
+.panel{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:20px;margin-bottom:14px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.panel-title{font-family:var(--font-display);font-size:17px;font-weight:600;letter-spacing:-.02em;color:var(--onyx)}
+.panel-sub{font-size:12px;color:var(--steel);margin-top:2px}
+.link-btn{font-size:12px;font-weight:500;color:var(--graphite);background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-btn);padding:7px 12px;cursor:pointer;font-family:var(--font-body)}
+.link-btn:hover{border-color:var(--border2)}
+
+/* ===== Section visibility ===== */
+.section{display:none}
+.section.active{display:block}
+
+/* ===== Stage bars ===== */
+.pipe{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:16px}
+.pipe-step{background:var(--mist);border:1px solid var(--border);border-radius:var(--r-card);padding:12px;text-align:center}
+.pipe-step .p-n{font-family:var(--font-mono);font-size:20px;color:var(--onyx);font-weight:400}
+.pipe-step .p-t{font-size:11px;color:var(--slate);margin-top:2px}
+.pipe-step.hot{background:var(--onyx);border-color:var(--onyx)}
+.pipe-step.hot .p-n{color:#fff}
+.pipe-step.hot .p-t{color:var(--fog)}
+.stagebar{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:16px}
+.stagebar .pipe-step{padding:10px 6px}
+.stagebar .p-n{font-size:16px}
+.stagebar .p-t{font-size:10px;line-height:1.3}
+
+/* ===== Lists / rows ===== */
+.list{display:flex;flex-direction:column}
+.row{display:flex;align-items:center;gap:12px;padding:11px 4px;border-top:1px solid var(--frost)}
+.row:first-child{border-top:none}
+.row .r-main{flex:1;min-width:0}
+.row .r-title{font-weight:500;color:var(--graphite);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .r-sub{font-size:12px;color:var(--steel);margin-top:1px}
+.row .r-side{display:flex;align-items:center;gap:8px;flex:none;font-size:12px;color:var(--steel)}
+.chip{font-size:11px;font-weight:500;padding:3px 10px;border-radius:999px;background:var(--mist);color:var(--slate);white-space:nowrap}
+.chip.dark{background:var(--onyx);color:#fff}
+.chip.ok{background:var(--okbg);color:var(--ok)}
+.chip.err{background:var(--errbg);color:var(--err)}
+.empty{padding:28px 16px;text-align:center;color:var(--steel);font-size:13px;border:1px dashed var(--border);border-radius:var(--r-card);background:var(--mist)}
+.empty .e-big{font-size:15px;color:var(--graphite);font-weight:500;margin-bottom:3px}
+
+/* ===== Cron ===== */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.f-tab{padding:7px 14px;border-radius:999px;background:var(--mist);border:1px solid transparent;color:var(--slate);font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body)}
+.f-tab.active{background:var(--canvas);border-color:var(--border);color:var(--onyx);box-shadow:rgba(18,18,18,.1) 0 1px 1px}
+.cron-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.cron-card{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:14px 16px}
+.cron-top{display:flex;align-items:flex-start;gap:10px}
+.dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:none}
+.dot.ok{background:var(--ok)}
+.dot.err{background:var(--err)}
+.dot.idle{background:var(--idle)}
+.cron-name{font-weight:600;color:var(--onyx);font-size:14px;line-height:1.3;letter-spacing:-.01em}
+.cron-sys{font-size:11px;color:var(--steel);letter-spacing:.04em;text-transform:uppercase;margin-top:1px}
+.cron-meta{display:flex;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--frost);flex-wrap:wrap}
+.cm{font-size:12px;color:var(--steel)}
+.cm b{display:block;font-weight:500;color:var(--graphite);font-family:var(--font-mono);font-size:12px;margin-top:1px}
+
+/* ===== Pain vault ===== */
+.tier-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.tier-card{border:1px solid var(--border);border-radius:var(--r-card);padding:14px;background:var(--mist)}
+.tier-card .t-name{font-family:var(--font-display);font-weight:600;font-size:14px;color:var(--onyx)}
+.tier-card .t-desc{font-size:12px;color:var(--slate);margin-top:3px;line-height:1.45}
+.tier-card .t-n{font-family:var(--font-mono);font-size:22px;color:var(--onyx);margin-top:8px}
+.pain-card{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px;margin-bottom:10px}
+.pain-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pain-id{font-family:var(--font-mono);font-size:11px;color:var(--steel)}
+.pain-title{font-weight:600;color:var(--onyx);margin-top:6px;font-size:14.5px;letter-spacing:-.01em}
+.pain-meta{font-size:12px;color:var(--slate);margin-top:6px;line-height:1.5}
+.pain-src{font-size:11px;font-family:var(--font-mono);word-break:break-all;margin-top:8px;color:var(--steel)}
+.pain-src a{color:var(--graphite);text-decoration:underline;text-decoration-color:var(--border2)}
+.skel{background:var(--onyx);border-radius:var(--r-btn);padding:12px 14px;margin-top:10px}
+.skel .sk-t{font-family:var(--font-mono);font-size:11px;color:var(--fog);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
+.skel .sk-l{font-size:12.5px;color:#d6d8e0;line-height:1.55}
+.skel .sk-l b{color:#fff;font-weight:600}
+
+/* ===== Clients ===== */
+.mrr-panel{display:flex;gap:32px;align-items:center;flex-wrap:wrap;background:var(--onyx);border-radius:var(--r-card);padding:22px 24px;margin-bottom:14px}
+.mrr-panel .m-big{font-family:var(--font-display);font-size:40px;font-weight:600;color:#fff;letter-spacing:-.02em;line-height:1}
+.mrr-panel .m-cap{font-size:12px;color:var(--fog);margin-top:6px}
+.mrr-panel .m-item{font-size:12px;color:var(--fog)}
+.mrr-panel .m-item b{display:block;font-family:var(--font-mono);font-size:18px;color:#fff;font-weight:500;margin-top:2px}
+.client{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px;margin-bottom:10px}
+.c-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.c-name{font-weight:600;color:var(--onyx);font-size:15px}
+.c-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--frost)}
+.c-sys{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.syschip{font-size:11px;padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--fog)}
+.syschip.on{border-color:var(--border2);color:var(--graphite);background:var(--mist)}
+
+/* ===== Perf nums ===== */
+.nums{display:flex;gap:14px;flex:none}
+.nums .n{font-size:11px;color:var(--steel);text-align:right;font-family:var(--font-mono)}
+.nums .n b{display:block;font-size:13px;color:var(--graphite);font-weight:500}
+
+/* ===== Magnets ===== */
+.mag-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.mag{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px}
+.mag .mg-title{font-weight:600;color:var(--onyx);font-size:14px;line-height:1.35}
+.mag .mg-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+.mag .mg-lead{margin-top:10px;padding-top:10px;border-top:1px solid var(--frost);font-size:12px;color:var(--steel)}
+.mag .mg-lead b{color:var(--graphite);font-family:var(--font-mono);font-weight:500}
+
+/* ===== Heat ===== */
+.heat{font-size:12px;letter-spacing:1px;color:var(--onyx)}
+.heat .off{color:var(--border)}
+
+/* ===== Responsive ===== */
+@media (max-width:1020px){
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .mini{grid-template-columns:repeat(2,1fr)}
+  .cron-grid{grid-template-columns:1fr}
+  .pipe{grid-template-columns:repeat(4,1fr)}
+  .stagebar{grid-template-columns:repeat(4,1fr)}
+  .tier-row{grid-template-columns:1fr}
+  .mag-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .app{display:block}
+  body{overflow-x:hidden}
+  .sidebar{display:none}
+  .topbar{display:flex;position:sticky;top:0}
+  .main{margin-left:0;padding:18px 16px 60px;max-width:100%}
+  h1.page-title{font-size:24px}
+  .kpis{grid-template-columns:1fr 1fr;gap:8px}
+  .mini{grid-template-columns:1fr 1fr;gap:8px}
+  .pipe{grid-template-columns:repeat(4,1fr);gap:6px}
+  .stagebar{grid-template-columns:repeat(4,1fr);gap:6px}
+  .panel{padding:16px}
+  .pain-head{gap:6px}
+  .row{flex-wrap:wrap}
+  .row .r-side{width:100%;padding-left:2px;margin-top:4px;justify-content:flex-start}
+  .kpi .k-note{line-height:1.45;word-break:break-word}
+  .mrr-panel{gap:18px}
+  .mrr-panel .m-big{font-size:32px}
+}
+@media (max-width:430px){
+  .kpis{grid-template-columns:1fr 1fr}
+  .pipe{grid-template-columns:repeat(3,1fr)}
+  .cron-meta{gap:10px}
+  .nums{gap:10px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ SIDEBAR (desktop) ============ -->
+  <nav class="sidebar" id="sideNav">
+    <div class="brand">
+      <div class="brand-mark">L</div>
+      <div>
+        <div class="brand-name">Landio Content Bot</div>
+        <div class="brand-sub">Command Center</div>
+      </div>
+    </div>
+    <button class="nav-item active" data-sec="overview"><span class="ico">◎</span> ภาพรวม</button>
+    <div class="nav-label">ธุรกิจ</div>
+    <button class="nav-item" data-sec="sales"><span class="ico">◈</span> Sales · Pre-Build <span class="nav-count" id="nc-leads"></span></button>
+    <button class="nav-item" data-sec="clients"><span class="ico">◉</span> ลูกค้า & MRR <span class="nav-count" id="nc-clients"></span></button>
+    <div class="nav-label">คอนเทนต์</div>
+    <button class="nav-item" data-sec="pipeline"><span class="ico">▤</span> Content Pipeline</button>
+    <button class="nav-item" data-sec="pain"><span class="ico">◈</span> Shaman Pain Vault <span class="nav-count" id="nc-pain"></span></button>
+    <button class="nav-item" data-sec="viral"><span class="ico">◇</span> Viral Scan <span class="nav-count" id="nc-viral"></span></button>
+    <button class="nav-item" data-sec="swipe"><span class="ico">▣</span> Swipe File <span class="nav-count" id="nc-swipe"></span></button>
+    <button class="nav-item" data-sec="perf"><span class="ico">▲</span> ผลงาน & วิเคราะห์</button>
+    <div class="nav-label">ระบบ</div>
+    <button class="nav-item" data-sec="magnets"><span class="ico">▣</span> Lead Magnets <span class="nav-count" id="nc-mags"></span></button>
+    <button class="nav-item" data-sec="cron"><span class="ico">⏱</span> Cron Jobs <span class="nav-count" id="nc-cron"></span></button>
+    <button class="nav-item" data-sec="approval"><span class="ico">☑</span> คิวอนุมัติ <span class="nav-count" id="nc-appr"></span></button>
+    <div class="sidebar-foot">
+      <span class="sync-dot"></span>เชื่อม Google Sheet<br>
+      <span id="foot-sync" style="color:var(--fog)">กำลังโหลด…</span>
+    </div>
+  </nav>
+
+  <!-- ============ TOPBAR (mobile) ============ -->
+  <div class="topbar" style="width:100%">
+    <div class="brand-mark">L</div>
+    <div class="brand-name" style="font-size:14px">Landio Content Bot</div>
+    <button class="hamburger" onclick="document.getElementById('mNav').classList.toggle('open')">☰</button>
+  </div>
+  <nav class="m-nav" id="mNav" style="width:100%">
+    <button class="nav-item active" data-sec="overview"><span class="ico">◎</span> ภาพรวม</button>
+    <button class="nav-item" data-sec="sales"><span class="ico">◈</span> Sales · Pre-Build</button>
+    <button class="nav-item" data-sec="clients"><span class="ico">◉</span> ลูกค้า & MRR</button>
+    <button class="nav-item" data-sec="pipeline"><span class="ico">▤</span> Content Pipeline</button>
+    <button class="nav-item" data-sec="pain"><span class="ico">◈</span> Shaman Pain Vault</button>
+    <button class="nav-item" data-sec="viral"><span class="ico">◇</span> Viral Scan</button>
+    <button class="nav-item" data-sec="swipe"><span class="ico">▣</span> Swipe File</button>
+    <button class="nav-item" data-sec="perf"><span class="ico">▲</span> ผลงาน & วิเคราะห์</button>
+    <button class="nav-item" data-sec="magnets"><span class="ico">▣</span> Lead Magnets</button>
+    <button class="nav-item" data-sec="cron"><span class="ico">⏱</span> Cron Jobs</button>
+    <button class="nav-item" data-sec="approval"><span class="ico">☑</span> คิวอนุมัติ</button>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+
+    <!-- ===== OVERVIEW ===== -->
+    <section class="section active" id="sec-overview">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">ภาพรวม</h1>
+          <div class="page-desc">ธุรกิจ + คอนเทนต์ + ระบบอัตโนมัติของ Landiograph ในหน้าเดียว</div>
+        </div>
+        <div class="updated">อัปเดตล่าสุด <b id="updated-at">—</b></div>
+      </div>
+      <div class="kpis" id="kpis"></div>
+      <div class="mini" id="minis"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Brief รอผลิต</div>
+            <div class="panel-sub">ไอเดียที่ผ่านแล้ว — รอเขียน content pack</div>
+          </div>
+          <button class="link-btn" data-goto="pipeline">ทั้งหมด →</button>
+        </div>
+        <div class="list" id="ov-briefs"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">พร้อมโพสต์</div>
+            <div class="panel-sub">คอนเทนต์ที่เสร็จแล้ว — รอลงตามคิว</div>
+          </div>
+          <button class="link-btn" data-goto="pipeline">ทั้งหมด →</button>
+        </div>
+        <div class="list" id="ov-ready"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">สถานะงานอัตโนมัติ</div>
+            <div class="panel-sub">รอบที่กำลังจะมาถึง</div>
+          </div>
+          <button class="link-btn" data-goto="cron">ดูทั้งหมด →</button>
+        </div>
+        <div class="list" id="ov-next"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Pain ร้อนแรงล่าสุด (Shaman)</div>
+            <div class="panel-sub">การ์ด pain ล่าสุดจากทุก niche</div>
+          </div>
+          <button class="link-btn" data-goto="pain">เปิด Pain Vault →</button>
+        </div>
+        <div id="ov-pains"></div>
+      </div>
+    </section>
+
+    <!-- ===== SALES / PRE-BUILD ===== -->
+    <section class="section" id="sec-sales">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Sales · Pre-Build Pipeline</h1>
+          <div class="page-desc">ทำเว็บเดโม่ก่อนขาย — เก็บคลินิก → สร้างเดโม่ → ส่งเจ้าของ → ปิดการขาย</div>
+        </div>
+      </div>
+      <div class="mini" id="sales-minis"></div>
+      <div class="stagebar" id="sales-stages"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">รายชื่อคลินิกในระบบ</div><div class="panel-sub">ทุกสถานะ — เรียงตามรอบ follow-up</div></div>
+        </div>
+        <div class="list" id="sales-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== CLIENTS & MRR ===== -->
+    <section class="section" id="sec-clients">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">ลูกค้า & MRR</h1>
+          <div class="page-desc">ลูกค้า WaaS — Setup Fee + รายเดือน พร้อมระบบที่ส่งมอบแล้ว</div>
+        </div>
+      </div>
+      <div class="mrr-panel" id="mrr"></div>
+      <div id="client-list"></div>
+    </section>
+
+    <!-- ===== PIPELINE ===== -->
+    <section class="section" id="sec-pipeline">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Content Pipeline</h1>
+          <div class="page-desc">สายพานผลิตคอนเทนต์ Landiograph — จากไอเดียถึงโพสต์ที่ลงจริง</div>
+        </div>
+      </div>
+      <div class="pipe" id="pipe"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Brief รอผลิต</div><div class="panel-sub">จากโฟลเดอร์ 02_briefs</div></div>
+        </div>
+        <div class="list" id="pl-briefs"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">พร้อมโพสต์</div><div class="panel-sub">จากโฟลเดอร์ 05_ready_to_post</div></div>
+        </div>
+        <div class="list" id="pl-ready"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Published / Winners</div><div class="panel-sub">โพสต์ที่ลงแล้วและที่ทำผลงานดี</div></div>
+        </div>
+        <div class="list" id="pl-pub"></div>
+      </div>
+    </section>
+
+    <!-- ===== PAIN VAULT ===== -->
+    <section class="section" id="sec-pain">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Shaman Pain Vault</h1>
+          <div class="page-desc">คลัง pain point ที่ล่าได้จริงพร้อม source — คัดมาจาก 8 niche คลินิก + ธุรกิจกระแสแรง</div>
+        </div>
+      </div>
+      <div class="tier-row" id="tiers"></div>
+      <div class="filters" id="pain-filters"></div>
+      <div id="pain-list"></div>
+    </section>
+
+    <!-- ===== VIRAL ===== -->
+    <section class="section" id="sec-viral">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Viral Scan</h1>
+          <div class="page-desc">โพสต์ viral จาก X แนว tech/dev/AI agent — สแกนทุกวัน 09:00</div>
+        </div>
+      </div>
+      <div id="viral-list"></div>
+    </section>
+
+    <!-- ===== PERFORMANCE ===== -->
+    <!-- ===== SWIPE FILE ===== -->
+    <section class="section" id="sec-swipe">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Swipe File</h1>
+          <div class="page-desc">คลัง ads/โพสต์ที่เก็บไว้ถอดแบบ — ส่งลิงก์มาในแชทพร้อมคำว่า "เก็บ" หรือ "เก็บ + breakdown" ได้เลย</div>
+        </div>
+      </div>
+      <input class="search" id="sw-search" type="text" placeholder="ค้นหา: hook, เพจ, มุมขาย…">
+      <div class="filters" id="sw-filters"></div>
+      <div class="sw-grid" id="sw-grid"></div>
+    </section>
+
+    <!-- ===== PERFORMANCE ===== -->
+    <section class="section" id="sec-perf">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">ผลงาน & วิเคราะห์</h1>
+          <div class="page-desc">โพสต์ที่ทำผลงานดี — เก็บ insight แล้ว recycle กลับมาทำใหม่</div>
+        </div>
+      </div>
+      <div class="mini" id="perf-minis"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <div><div class="panel-title">Winners Board</div><div class="panel-sub">เรียงตาม leads ที่ได้จริง</div></div>
+        </div>
+        <div class="list" id="perf-list"></div>
+      </div>
+    </section>
+
+    <!-- ===== LEAD MAGNETS ===== -->
+    <section class="section" id="sec-magnets">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Lead Magnets</h1>
+          <div class="page-desc">ของแจกที่ดึงลูกค้า — checklist, template, calculator, quiz</div>
+        </div>
+      </div>
+      <div class="mag-grid" id="mag-grid"></div>
+    </section>
+
+    <!-- ===== CRON ===== -->
+    <section class="section" id="sec-cron">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Cron Jobs</h1>
+          <div class="page-desc">งานอัตโนมัติทั้ง 16 ระบบ — แยกตามระบบเจ้าของ ดูสถานะรายตัวได้</div>
+        </div>
+      </div>
+      <div class="filters" id="cron-filters"></div>
+      <div class="cron-grid" id="cron-grid"></div>
+    </section>
+
+    <!-- ===== APPROVAL QUEUE ===== -->
+    <section class="section" id="sec-approval">
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">คิวอนุมัติคอนเทนต์</h1>
+          <div class="page-desc">งานที่ AI ผลิตเสร็จรอคำตัดสิน — APPROVED = เข้าคิวโพสต์ · DENIED = ปัดไป recycle ใหม่</div>
+        </div>
+      </div>
+      <div class="ap-grid" id="ap-grid"></div>
+      <div id="ap-empty" style="display:none; padding:40px 0; color:#a4abb8; text-align:center">
+        <p>ว่าง — ไม่มีชิ้นไหนรออนุมัติ</p>
+        <p style="font-size:13px">คิวใหม่มาทุกวัน 12:00 หลัง Pack Production · Recap 20:00 ย้ำอีกรอบ</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+/* =====================================================
+   DATA — ดึงผ่าน API (fetch) หรือ MOCK ถ้า API ล้ม
+===================================================== */
+const MOCK = __DATA_PLACEHOLDER__;
+
+/* CONFIG — API endpoint (Apps Script Web App) */
+const API_URL = "https://script.google.com/macros/s/AKfycbwbwu2_S6G4QZ7aDB9rxeHvGBxrStMlcouQLv0DrVK680j12BDwaDnOSc8RQQEPYy5BDw/exec";
+const API_TOKEN = "lg_Q_hLccxlVSnxYy8GZ_JRWwb_LZ5EH90p";
+
+async function fetchData(){
+  try {
+    const r = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({token: API_TOKEN, action: 'get'})
+    });
+    const d = await r.json();
+    if (d && d.updated) return d;
+  } catch(e) { console.warn('API fail → MOCK', e); }
+  return MOCK;
+}
+
+fetchData().then(boot);
+
+const state = { cronFilter:'ALL', painFilter:'ALL', data:null };
+const STAGES = [
+  ['SCRAPED','เก็บข้อมูล'],['DEMO','สร้างเดโม่'],['DEPLOYED','ขึ้น Vercel'],['SENT','ส่งเจ้าของ'],
+  ['REPLIED','ตอบกลับแล้ว'],['NEGOTIATE','เจรจา'],['WON','ปิดการขาย'],['LOST','ไม่สนใจ']
+];
+function stageLabel(s){const f=STAGES.find(x=>x[0]===s);return f?f[1]:s}
+function stageChip(s){return s==='WON'?'ok':(s==='LOST'?'err':(s==='NEGOTIATE'||s==='REPLIED'?'dark':''))}
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function heat(n){let h='';for(let i=1;i<=5;i++)h+='<span class="'+(i<=n?'':'off')+'">★</span>';return '<span class="heat">'+h+'</span>'}
+function baht(n){return '฿'+Number(n||0).toLocaleString('th-TH')}
+
+/* ---------- render ---------- */
+function render(){
+  const d = state.data;
+  document.getElementById('updated-at').textContent = d.updated||'—';
+  document.getElementById('foot-sync').textContent = d.sync_note||'—';
+
+  /* nav counts */
+  document.getElementById('nc-cron').textContent = d.cron_jobs.length;
+  document.getElementById('nc-pain').textContent = d.pains.length;
+  document.getElementById('nc-viral').textContent = d.viral.length;
+  document.getElementById('nc-leads').textContent = d.leads.length;
+  document.getElementById('nc-clients').textContent = d.clients.filter(c=>c.status==='ACTIVE').length;
+  document.getElementById('nc-mags').textContent = d.magnets.length;
+  const pipeTotal = d.pipeline.stages.reduce((a,s)=>a+s.n,0);
+
+  /* KPIs (คอนเทนต์) — ยอดขายอยู่หน้า Sales เท่านั้น */
+  const mrr = d.clients.filter(c=>c.status==='ACTIVE').reduce((a,c)=>a+Number(c.monthly||0),0);
+  const active = d.clients.filter(c=>c.status==='ACTIVE').length;
+  const waiting = d.leads.filter(l=>l.stage==='SENT').length;
+  const won = d.leads.filter(l=>l.stage==='WON').length;
+  const briefN = (d.pipeline.stages.find(s=>s.t==='02_briefs')||{n:0}).n;
+  const readyN = (d.pipeline.stages.find(s=>s.t==='05_ready_to_post')||{n:0}).n;
+  const winnersN = (d.pipeline.stages.find(s=>s.t==='07_winners')||{n:0}).n;
+  document.getElementById('kpis').innerHTML = [
+    kpi('คอนเทนต์ในสายพาน', pipeTotal, d.pipeline.stages.map(s=>s.n).join(' · ')),
+    kpi('Brief รอผลิต', briefN, briefN? 'รอเขียน content pack':'คิวว่าง'),
+    kpi('พร้อมโพสต์', readyN, readyN? 'รอลงตามคิว':'ยังไม่มีในคิว'),
+    kpi('Pain Cards', d.pains.length, d.pains.length? 'ใน vault':'รอบแรกกำลังล่า')
+  ].join('');
+
+  /* mini stats (ผลลัพธ์คอนเทนต์) */
+  const okJobs = d.cron_jobs.filter(j=>j.status==='ok').length;
+  const errJobs = d.cron_jobs.filter(j=>j.status==='err').length;
+  const totalReach = d.performance.reduce((a,p)=>a+Number(p.reach||0),0);
+  const totalSaves = d.performance.reduce((a,p)=>a+Number(p.saves||0),0);
+  const totalLeads = d.performance.reduce((a,p)=>a+Number(p.leads||0),0);
+  document.getElementById('minis').innerHTML = [
+    mini(winnersN, 'โพสต์ที่ทำผลงานดี'),
+    mini(Number(totalReach).toLocaleString('th-TH'), 'reach รวม'),
+    mini(totalSaves, 'saves รวม'),
+    mini(totalLeads, 'leads จากคอนเทนต์')
+  ].join('');
+
+  /* content panels (จาก pipeline เดียวกัน) */
+  document.getElementById('ov-briefs').innerHTML = fillList(d.pipeline.briefs.slice(0,3),'ยังไม่มี brief ค้าง — สายพานว่างเรียบร้อย');
+  document.getElementById('ov-ready').innerHTML = fillList(d.pipeline.ready.slice(0,3),'ยังไม่มีคอนเทนต์พร้อมโพสต์');
+
+  /* overview: next runs */
+  const byNext = [...d.cron_jobs].filter(j=>j.next_human).sort((a,b)=>a.next_sort-b.next_sort);
+  document.getElementById('ov-next').innerHTML =
+    byNext.slice(0,4).map(j=>rowItem(dotFor(j.status), j.name, j.sys_label+' · '+j.schedule_human, j.next_human?'รอบหน้า: '+j.next_human:'')).join('') ||
+    emptyBox('ยังไม่มีรอบที่ติดตั้ง');
+
+  /* pipeline */
+  document.getElementById('pipe').innerHTML = d.pipeline.stages.map(s=>
+    '<div class="pipe-step'+(s.hot?' hot':'')+'"><div class="p-n">'+s.n+'</div><div class="p-t">'+esc(s.t)+'</div></div>').join('');
+  document.getElementById('pl-briefs').innerHTML = fillList(d.pipeline.briefs,'ยังไม่มี brief ค้าง — สายพานว่างเรียบร้อย');
+  document.getElementById('pl-ready').innerHTML = fillList(d.pipeline.ready,'ยังไม่มีคอนเทนต์พร้อมโพสต์');
+  document.getElementById('pl-pub').innerHTML = fillList(d.pipeline.published,'ยังไม่มีโพสต์ที่ลงจริง');
+
+  /* pains */
+  const tiers=[
+    {k:'T1',n:'Tier 1 · Evergreen',d:'ปัญหาโครงสร้างที่เจ็บตลอด — รีวิว กระทู้ คอมเมนต์จริง'},
+    {k:'T2',n:'Tier 2 · Trend',d:'เจ็บตามกระแส ข่าว ดราม่า — มีหน้าต่างเวลาจำกัด'},
+    {k:'T3',n:'Tier 3 · Deep',d:'เจาะจากงานวิจัย/รายงาน — reverse engineer insight'}
+  ];
+  document.getElementById('tiers').innerHTML = tiers.map(t=>{
+    const n = d.pains.filter(p=>p.tier===t.k).length;
+    return '<div class="tier-card"><div class="t-name">'+t.n+'</div><div class="t-desc">'+t.d+'</div><div class="t-n">'+n+'</div></div>';
+  }).join('');
+  const niches = [...new Set(d.pains.map(p=>p.niche))];
+  buildFilters('pain-filters', ['ALL'].concat(niches), state.painFilter, 'painFilter','renderPains');
+  renderPains();
+  document.getElementById('ov-pains').innerHTML = d.pains.length?
+    d.pains.slice().sort((a,b)=>b.heat-a.heat).slice(0,3).map(painCard).join(''):
+    emptyBox('Pain Vault ยังว่าง — รอบแรกคืออาทิตย์ 10:30 (Deep Mining) และทุกวัน 18:30 (Trend Radar) การ์ดแรกจะเข้าที่นี่');
+
+  /* viral */
+  document.getElementById('viral-list').innerHTML = d.viral.length?
+    d.viral.map(v=>rowItem('<span class="chip dark">X</span>', v.title, v.hook, '<a href="'+esc(v.url)+'" target="_blank" style="text-decoration:underline;text-decoration-color:var(--border2)">เปิดโพสต์</a>')).join(''):
+    emptyBox('ยังไม่มีข้อมูล viral — รอบสแกน 09:00 ทุกวันจะเติมเข้ามา');
+
+  /* sales */
+  document.getElementById('sales-minis').innerHTML = [
+    mini(d.leads.length, 'คลินิกในระบบ'),
+    mini(d.leads.filter(l=>['DEMO','DEPLOYED'].includes(l.stage)).length, 'กำลังสร้างเดโม่'),
+    mini(waiting, 'รอเจ้าของตอบ'),
+    mini(won+(d.leads.length? ' · '+Math.round(won/d.leads.length*100)+'%':''), 'ปิดจริง')
+  ].join('');
+  document.getElementById('sales-stages').innerHTML = STAGES.map(s=>{
+    const n = d.leads.filter(l=>l.stage===s[0]).length;
+    return '<div class="pipe-step'+(s[0]==='SENT'?' hot':'')+'"><div class="p-n">'+n+'</div><div class="p-t">'+s[1]+'</div></div>';
+  }).join('');
+  const sorted = [...d.leads].sort((a,b)=>String(a.followup||'9999').localeCompare(String(b.followup||'9999')));
+  document.getElementById('sales-list').innerHTML = sorted.length?
+    sorted.map(l=>rowItem('<span class="chip '+stageChip(l.stage)+'">'+esc(stageLabel(l.stage))+'</span>',
+      l.name, l.niche+' · '+l.rating+' ★ · ทวก '+(l.followup||'—'),
+      l.demo_url?'<a href="'+esc(l.demo_url)+'" target="_blank" style="text-decoration:underline;text-decoration-color:var(--border2)">เดโม่</a>':'')).join(''):
+    emptyBox('ยังไม่มีคลินิกในระบบ — เริ่มจาก scrape Google Maps ร้านรีวิวดีแต่ไม่มีเว็บ');
+
+  /* clients */
+  const setupTotal = d.clients.reduce((a,c)=>a+Number(c.setup||0),0);
+  const arpu = active? Math.round(mrr/active):0;
+  document.getElementById('mrr').innerHTML =
+    '<div><div class="m-big">'+baht(mrr)+'</div><div class="m-cap">MRR — รายได้ประจำเดือน</div></div>'+
+    '<div class="m-item"><b>'+active+'</b>ลูกค้า active</div>'+
+    '<div class="m-item"><b>'+baht(arpu)+'</b>รายได้เฉลี่ย/ลูก</div>'+
+    '<div class="m-item"><b>'+baht(setupTotal)+'</b>setup fee สะสม</div>';
+  document.getElementById('client-list').innerHTML = d.clients.length?
+    d.clients.map(c=>{
+      const sys=[['เว็บไซต์',c.sys_web],['LINE OA',c.sys_line],['AI Chatbot',c.sys_bot],['Sheets CMS',c.sys_cms],['Local SEO',c.sys_seo]];
+      return '<div class="client"><div class="c-head"><div class="c-name">'+esc(c.name)+'</div>'+
+        '<span class="chip dark">'+esc(c.pkg)+'</span>'+(c.status!=='ACTIVE'?'<span class="chip err">'+esc(c.status)+'</span>':'')+'</div>'+
+        '<div class="c-meta"><div class="cm">Setup<b>'+baht(c.setup)+'</b></div>'+
+        '<div class="cm">รายเดือน<b>'+baht(c.monthly)+'</b></div>'+
+        '<div class="cm">เริ่ม<b>'+esc(c.started)+'</b></div>'+
+        '<div class="cm">เก็บบิลถัดไป<b>'+esc(c.next_billing)+'</b></div></div>'+
+        '<div class="c-sys">'+sys.map(s=>'<span class="syschip'+(s[1]?' on':'')+'">'+(s[1]?'✓ ':'')+s[0]+'</span>').join('')+'</div></div>';
+    }).join(''):
+    emptyBox('ยังไม่มีลูกค้า — จาก Pre-Build pipeline ที่ปิดจริงจะมาโผล่ที่นี่อัตโนมัติ');
+
+  /* perf */
+  document.getElementById('perf-minis').innerHTML = [
+    mini(d.performance.length, 'โพสต์ที่ทำผลงานดี'),
+    mini(Number(totalReach).toLocaleString('th-TH'), 'reach รวม'),
+    mini(totalSaves, 'saves รวม'),
+    mini(totalLeads, 'leads จากคอนเทนต์')
+  ].join('');
+  const perfSorted = [...d.performance].sort((a,b)=>Number(b.leads||0)-Number(a.leads||0));
+  document.getElementById('perf-list').innerHTML = perfSorted.length?
+    perfSorted.map(p=>rowItem('<span class="chip'+(p.recycled?' ok':'')+'">'+esc(p.platform)+'</span>',
+      p.title, (p.recycled?'♻ recycle แล้ว · ':'')+esc(p.date),
+      '<div class="nums"><div class="n"><b>'+Number(p.reach).toLocaleString('th-TH')+'</b>reach</div><div class="n"><b>'+p.saves+'</b>saves</div><div class="n"><b>'+p.leads+'</b>leads</div></div>')).join(''):
+    emptyBox('ยังไม่มีข้อมูลผลงาน — เชื่อม insights จากเพจเข้า Sheet แล้วจะเติมเอง');
+
+  /* magnets */
+  document.getElementById('mag-grid').innerHTML = d.magnets.length?
+    d.magnets.map(m=>{
+      const st = m.status==='LIVE'?'ok':(m.status==='BUILDING'?'dark':'');
+      return '<div class="mag"><div class="mg-title">'+esc(m.title)+'</div>'+
+        '<div class="mg-row"><span class="chip">'+esc(m.type)+'</span><span class="chip '+st+'">'+esc(m.status)+'</span></div>'+
+        '<div class="mg-lead">เก็บ leads แล้ว <b>'+(m.leads||0)+'</b> คน'+(m.url?' · <a href="'+esc(m.url)+'" target="_blank" style="text-decoration:underline">เปิด</a>':'')+'</div></div>';
+    }).join(''):
+    emptyBox('ยังไม่มี Lead Magnet — เริ่มจาก checklist ที่แก้ pain ร้อนอันดับ 1 ของ niche เป้าหมาย');
+
+  /* cron */
+  const systems=[['ALL','ทั้งหมด'],['FACTORY','Content Factory'],['SHAMAN','Shaman'],['VIRAL','Viral Scan']];
+  buildFilters('cron-filters', systems.map(s=>s[0]), state.cronFilter, 'cronFilter', 'renderCron', systems);
+  renderCron();
+  renderSwipe();
+  renderApproval();
+  const ncA=document.getElementById('nc-appr'); if(ncA) ncA.textContent=(state.data.approval_queue||[]).filter(x=>(x.state||'PENDING').toUpperCase()==='PENDING').length||'';
+}
+
+/* ===== APPROVAL QUEUE ===== */
+function renderApproval(){
+  const grid=document.getElementById('ap-grid'), empty=document.getElementById('ap-empty');
+  if(!grid) return;
+  const items=(state.data.approval_queue||[]).slice().sort((a,b)=>((a.state||'PENDING').toUpperCase()==='PENDING'?0:1)-((b.state||'PENDING').toUpperCase()==='PENDING'?0:1));
+  grid.innerHTML='';
+  if(!items.length){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  items.forEach(it=>{
+    const st=(it.state||'PENDING').toUpperCase();
+    const isRecycle=(it.id||'').indexOf('RECYCLE')===0 && st==='PENDING';
+    const cls=st==='APPROVED'?'ap-approved':st==='DENIED'?'ap-denied':'';
+    const card=document.createElement('div');
+    card.className='ap-card '+cls;
+    const why=it.note&&it.note.indexOf('decided')===-1&&it.note.indexOf('มุมที่เลือก')===-1&&it.note!=='' ? it.note : (isRecycle?'Recycle Engine แตกจาก winner ที่เคยชนะ — ติ๊กมุมที่ชอบ แล้วกดปุ่มด้านล่าง':'ผ่านมาตรฐานสายพาน (brief → pack) · hook 3 แบบ + carousel + reel + CTA พร้อมใช้');
+    let inner=
+      '<div class="ap-id"><span>'+esc(it.id)+'</span><span class="ap-state">'+st+'</span></div>'+
+      '<div class="ap-hook">'+esc(it.hook||'(ไม่มี hook)')+'</div>'+
+      '<div class="ap-pillar">'+esc(it.pillar||'')+'</div>'+
+      '<div class="ap-why"><b>ทำไมชิ้นนี้ถูกเสนอ:</b> '+esc(why)+'</div>';
+    if(isRecycle){
+      const angles=[['1','POV'],['2','Before-After'],['3','Roast'],['4','Search Answer'],['5','Story Hook']];
+      inner+='<div class="ap-angles">'+angles.map(a=>
+        '<label class="ap-angle"><input type="checkbox" value="'+a[0]+'" onchange="apChosen(\''+it.id+'\',this)"> <b>'+a[0]+'</b> '+a[1]+'</label>').join('')+'</div>'+
+        '<div class="ap-btns"><button class="ap-yes" id="apbtn-'+it.id+'" disabled onclick="decideRecycle(\''+it.id+'\')">✓ ผลิตมุมที่เลือก</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ ปัดทิ้ง</button></div>';
+    } else if(st==='PENDING'){
+      inner+='<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ APPROVED</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ DENIED</button></div>';
+    } else {
+      inner+='<div class="ap-done-label">'+(st==='APPROVED'?('→ คิวโพสต์'+(it.note&&it.note.indexOf('มุมที่เลือก')>-1?' · '+esc(it.note):'')):'ปัดแล้ว — จะถูก recycle เป็นมุมใหม่')+'</div>';
+    }
+    card.innerHTML=inner;
+    grid.appendChild(card);
+  });
+}
+
+function apChosen(id, cb){
+  const btn=document.getElementById('apbtn-'+id);
+  if(!btn) return;
+  const boxes=cb.closest('.ap-angles').querySelectorAll('input:checked');
+  btn.disabled=boxes.length===0;
+  btn.textContent='✓ ผลิต '+[...boxes].map(b=>b.value).join(',')||'เลือกมุม';
+}
+
+async function decideRecycle(id){
+  const card=document.getElementById('apbtn-'+id).closest('.ap-card');
+  const angles=[...card.querySelectorAll('.ap-angles input:checked')].map(b=>b.value).join(',');
+  try{
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'recycle_choice',action:'CHOOSE',
+        payload:{id:id,angles:angles,note:'chosen by Francisco (dashboard)'}})});
+    const it=(state.data.approval_queue||[]).find(x=>x.id===id);
+    if(it){ it.state='APPROVED'; it.note='มุมที่เลือก: '+angles; }
+    renderApproval();
+  }catch(e){ alert('เชื่อม API ไม่ได้ — กดรีเฟรชแล้วลองใหม่'); }
+}
+
+async function decide(id, action){
+  const it=(state.data.approval_queue||[]).find(x=>x.id===id);
+  try{
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'approval',action:action,
+        payload:{id:id,state:action,action:action,hook:it?it.hook:'',pillar:it?it.pillar:'',note:'decided by Francisco (dashboard)'}})});
+    if(it) it.state=action;
+    renderApproval();
+    const ncA=document.getElementById('nc-appr');
+    if(ncA) ncA.textContent=(state.data.approval_queue||[]).filter(x=>(x.state||'PENDING').toUpperCase()==='PENDING').length||'';
+  }catch(e){ alert('เชื่อม API ไม่ได้ — กดรีเฟรชแล้วลองใหม่'); }
+}
+
+function kpi(l,v,n){return '<div class="kpi"><div class="k-label">'+l+'</div><div class="k-value">'+v+'</div><div class="k-note">'+esc(n)+'</div></div>'}
+function mini(n,l){return '<div class="mstat"><div class="m-n">'+n+'</div><div class="m-l">'+esc(l)+'</div></div>'}
+function dotFor(s){return '<span class="dot '+s+'"></span>'}
+function rowItem(left,title,sub,right){return '<div class="row">'+left+'<div class="r-main"><div class="r-title">'+esc(title)+'</div><div class="r-sub">'+esc(sub)+'</div></div>'+(right?'<div class="r-side">'+right+'</div>':'')+'</div>'}
+function emptyBox(t,b){return '<div class="empty"><div class="e-big">'+esc(t)+'</div>'+(b?esc(b):'')+'</div>'}
+
+/* ===== Approval card styles (monochrome ธีมเดียวกับ dashboard) ===== */
+const apStyle=document.createElement('style');
+apStyle.textContent=
+ '.ap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}'+
+ '.ap-card{background:#fff;border:1px solid #cdd2d9;border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}'+
+ '.ap-card.ap-approved{border-color:#1a1b25;background:#f6f8fa}'+
+ '.ap-card.ap-denied{opacity:.55}'+
+ '.ap-id{font-size:11px;letter-spacing:.08em;color:#a4abb8;text-transform:uppercase;display:flex;justify-content:space-between;gap:8px}'+
+ '.ap-state{font-weight:700;color:#1a1b25}'+
+ '.ap-hook{font-size:15px;line-height:1.5;color:#1a1b25;font-weight:600}'+
+ '.ap-pillar{font-size:12px;color:#5f6672}'+
+ '.ap-why{font-size:12px;color:#5f6672;border-left:2px solid #cdd2d9;padding-left:10px;line-height:1.55}'+
+ '.ap-btns{display:flex;gap:8px;margin-top:auto}'+
+ '.ap-btns button{flex:1;padding:9px 0;border-radius:7px;border:1px solid #1a1b25;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}'+
+ '.ap-btns .ap-yes{background:#1a1b25;color:#fff}.ap-btns .ap-yes:hover{background:#3a3d4d}'+
+ '.ap-btns .ap-no{background:#fff;color:#1a1b25}.ap-btns .ap-no:hover{background:#eceff3}'+
+ '.ap-btns button:disabled{opacity:.5;cursor:wait}'+
+ '.ap-done-label{text-align:center;font-size:12px;color:#a4abb8;padding:4px 0 0}'+
+ '.ap-angles{display:flex;flex-wrap:wrap;gap:6px}'+
+ '.ap-angle{display:flex;align-items:center;gap:5px;font-size:12px;color:#1a1b25;border:1px solid #cdd2d9;border-radius:6px;padding:6px 9px;cursor:pointer;user-select:none}'+
+ '.ap-angle:hover{background:#f6f8fa}'+
+ '.ap-angle input{accent-color:#1a1b25;margin:0}';
+document.head.appendChild(apStyle);
+function fillList(arr,emptyMsg){return arr.length?arr.map(x=>rowItem('<span class="chip">'+esc(x.tag||'')+'</span>',x.title,x.sub,x.right||'')).join(''):emptyBox(emptyMsg)}
+
+function buildFilters(id, keys, cur, key, fn, labels){
+  document.getElementById(id).innerHTML = keys.map(k=>{
+    const lb = labels? labels.find(x=>x[0]===k)[1] : k;
+    return '<button class="f-tab'+(k===cur?' active':'')+'" onclick="setFilter(\''+key+'\',\''+k+'\',\''+fn+'\')">'+esc(lb)+'</button>';
+  }).join('');
+}
+function setFilter(key,val,fn){
+  state[key]=val;
+  if(fn==='renderCron')renderCron();
+  else if(fn==='renderSwipeList'){swState.filter=val;renderSwipeList();}
+  else renderPains();
+}
+
+function renderCron(){
+  const d=state.data;
+  const list = d.cron_jobs.filter(j=> state.cronFilter==='ALL' || j.sys===state.cronFilter);
+  document.getElementById('cron-grid').innerHTML = list.map(j=>
+    '<div class="cron-card"><div class="cron-top">'+dotFor(j.status)+
+    '<div><div class="cron-name">'+esc(j.name)+'</div><div class="cron-sys">'+esc(j.sys_label)+'</div></div></div>'+
+    '<div class="cron-meta">'+
+    '<div class="cm">ตาราง<b>'+esc(j.schedule_human)+'</b></div>'+
+    '<div class="cm">รอบหน้า<b>'+esc(j.next_human||'—')+'</b></div>'+
+    '<div class="cm">รอบล่าสุด<b>'+esc(j.last_human||'ยังไม่รัน')+'</b></div>'+
+    '</div></div>').join('');
+}
+function renderPains(){
+  const d=state.data;
+  const list = d.pains.filter(p=> state.painFilter==='ALL' || p.niche===state.painFilter);
+  document.getElementById('pain-list').innerHTML = list.length? list.map(painCard).join('') : emptyBox('ไม่มีการ์ดในหมวดนี้');
+}
+function painCard(p){
+  return '<div class="pain-card"><div class="pain-head"><span class="pain-id">'+esc(p.id)+'</span>'+
+    '<span class="chip">'+esc(p.tierName)+'</span><span class="chip">'+esc(p.niche)+'</span>'+heat(p.heat)+'</div>'+
+    '<div class="pain-title">'+esc(p.title)+'</div>'+
+    '<div class="pain-meta">'+esc(p.symptom)+'</div>'+
+    (p.url?'<div class="pain-src">SOURCE · <a href="'+esc(p.url)+'" target="_blank">'+esc(p.url)+'</a></div>':'<div class="pain-src">[HYPOTHESIS] '+esc(p.validate||'')+'</div>')+
+    '<div class="skel"><div class="sk-t">Copy skeleton</div><div class="sk-l"><b>'+esc(p.skel_title)+'</b><br>'+esc(p.skel_pas)+'</div></div>'+
+    '</div>';
+}
+
+/* ---------- swipe file ---------- */
+const swState = { filter:'ALL' };
+function renderSwipe(){
+  const d = state.data, sw = d.swipe || [];
+  document.getElementById('nc-swipe').textContent = sw.length;
+  const tiers = [...new Set(sw.map(s=>s.angel_tier||'PENDING'))];
+  const labels = [['ALL','ทั้งหมด']].concat(tiers.map(t=>[t, t==='ANGEL'?'นางฟ้า 90+วัน':(t==='RISING'?'นางฟ้า 30+วัน':t)]));
+  buildFilters('sw-filters', ['ALL'].concat(tiers), swState.filter, '_f', 'renderSwipeList', labels);
+  renderSwipeList();
+}
+function renderSwipeList(){
+  const d = state.data, sw = d.swipe || [];
+  const q = (document.getElementById('sw-search').value||'').toLowerCase();
+  const list = sw.filter(s=> (swState.filter==='ALL' || (s.angel_tier||'PENDING')===swState.filter) &&
+    (!q || JSON.stringify(s).toLowerCase().includes(q)));
+  document.getElementById('sw-grid').innerHTML = list.length? list.map(s=>
+    '<div class="sw-card"><div class="sw-head"><span class="sw-id">'+esc(s.id)+'</span>'+
+    '<span class="chip">'+esc(s.platform||'FB')+'</span>'+
+    (s.angel_tier && s.angel_tier!=='PENDING' ? '<span class="chip ok">'+esc(s.angel_tier)+'</span>' : '<span class="chip">ยังไม่จัด tier</span>')+
+    '</div><div class="sw-page">'+esc(s.page||'')+'</div>'+
+    '<div class="sw-hook">'+esc(s.hook||'')+'</div>'+
+    '<div class="sw-actions">'+
+    (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดต้นฉบับ</a>':'')+
+    (s.breakdown?'<a class="link-btn" href="'+esc(s.breakdown_url||'#')+'" target="_blank">Breakdown'+(s.grill_score?' · '+esc(s.grill_score)+'/10':'')+'</a>':'<span class="chip">รอ breakdown</span>')+
+    '</div></div>').join('') :
+    emptyBox('ยังไม่มีของในคลัง — ส่งลิงก์โพสต์/ads มาในแชท พร้อมคำว่า "เก็บ" หรือ "เก็บ + breakdown"');
+}
+document.addEventListener('input', e=>{ if(e.target.id==='sw-search') renderSwipeList(); });
+
+/* ---------- nav ---------- */
+function goto(sec){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('sec-'+sec); if(!el)return;
+  el.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.sec===sec));
+  document.getElementById('mNav').classList.remove('open');
+  if(location.hash.slice(1)!==sec) history.replaceState(null,'','#'+sec);
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('.nav-item').forEach(b=>b.addEventListener('click',()=>goto(b.dataset.sec)));
+document.addEventListener('click',e=>{const t=e.target.closest('[data-goto]'); if(t)goto(t.dataset.goto)});
+window.addEventListener('hashchange',()=>{const s=location.hash.slice(1); if(s&&document.getElementById('sec-'+s))goto(s)});
+
+/* ---------- boot ---------- */
+function boot(data){state.data=data;render();const h=location.hash.slice(1);if(h&&document.getElementById('sec-'+h))goto(h)}
+/* ดึงข้อมูลเริ่มต้น — fetchData() อยู่ด้านบน (API_URL + fallback MOCK) */
+</script>
+</body>
+</html>
