@@ -76,7 +76,7 @@ h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;let
 .search{width:100%;background:var(--canvas);border:1px solid var(--border);border-radius:var(--r-btn);padding:10px 14px;font-family:var(--font-body);font-size:14px;color:var(--graphite);margin-bottom:12px;outline:none}
 .search::placeholder{color:var(--fog)}
 .search:focus{border-color:var(--border2);box-shadow:0 0 0 2px rgba(39,40,53,.08)}
-.sw-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.sw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
 .sw-card{background:var(--canvas);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:16px;display:flex;flex-direction:column;gap:8px}
 .sw-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sw-id{font-family:var(--font-mono);font-size:11px;color:var(--steel)}
@@ -509,7 +509,7 @@ const API_TOKEN = "lg_Q_hLccxlVSnxYy8GZ_JRWwb_LZ5EH90p";
 
 /* ---------- SPEED LAYER ----------
    1) เก็บ API response ไว้ localStorage — เปิดครั้งถัดไปวาดจอจาก cache ทันที (0ms)
-   2) ยิง API "เบื้องหลัง" (requestIdleCallback) — ข้อมูลใหม่ซ้อนทับแบบไม่รีเฟรช
+   2) ยิง API เบื้องหลัง (requestIdleCallback) — ข้อมูลใหม่ซ้อนทับแบบไม่รีเฟรช
    3) มี ?fresh=1 ให้ข้าม cache (ใช้ตอนอยากบังคับดึงใหม่) */
 const CACHE_KEY = 'landio_dash_cache_v1';
 const CACHE_TTL = 5 * 60 * 1000; /* 5 นาที */
@@ -749,7 +749,7 @@ function renderApproval(){
     } else if(st==='PENDING'){
       inner+='<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ APPROVED</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ DENIED</button></div>';
     } else {
-      const when = it.decided_at ? new Date(it.decided_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      const when = (it.decided_at && !isNaN(new Date(it.decided_at))) ? new Date(it.decided_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       const next = st==='APPROVED'
         ? '→ เข้าคิวโพสต์แล้ว (05_ready_to_post ในเครื่อง) · รอบโพสต์อัตโนมัติถัดไปจะหยิบไปลงเพจ'+(when?' · ตัดสินเมื่อ '+when:'')
         : '→ ปัดแล้ว — ชิ้นนี้จะไม่ถูกผลิต และกลับเข้า Recycle เป็นมุมใหม่ภายใน 7 วัน'+(when?' · ตัดสินเมื่อ '+when:'');
@@ -791,7 +791,7 @@ async function decide(id, action){
     fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:API_TOKEN,type:'pipeline',
         payload:{stage: action==='APPROVED'?'05_ready_to_post':'01_ideas', tag:'APPROVAL',
-                 title:(it&&it.hook)||id, sub:(it?it.id:id)+' · '+(it?it.pillar||'')+' · '+action+' โดย Francisco'}})});
+                 title:(it&&it.hook)||id, sub:(it?it.id:id)+' · '+(it?it.pillar:'')+' · '+action+' โดย Francisco'}})});
     if(it){ it.state=action; it.decided_at=new Date().toISOString(); }
     renderApproval();
     const ncA=document.getElementById('nc-appr');
