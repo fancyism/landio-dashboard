@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Landio Content Bot — Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -498,23 +499,58 @@ h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;let
 /* =====================================================
    DATA — ดึงผ่าน API (fetch) หรือ MOCK ถ้า API ล้ม
 ===================================================== */
-const MOCK = {};
+const MOCK = __DATA_PLACEHOLDER__;
 
 /* CONFIG — API endpoint (Apps Script Web App) */
 const API_URL = "https://script.google.com/macros/s/AKfycbwbwu2_S6G4QZ7aDB9rxeHvGBxrStMlcouQLv0DrVK680j12BDwaDnOSc8RQQEPYy5BDw/exec";
 const API_TOKEN = "lg_Q_hLccxlVSnxYy8GZ_JRWwb_LZ5EH90p";
 
-async function fetchData(){
+/* fetchData อยู่ด้านล่าง (SPEED LAYER) — cache ก่อน แล้วยิง API เบื้องหลัง */
+
+/* ---------- SPEED LAYER ----------
+   1) เก็บ API response ไว้ localStorage — เปิดครั้งถัดไปวาดจอจาก cache ทันที (0ms)
+   2) ยิง API "เบื้องหลัง" (requestIdleCallback) — ข้อมูลใหม่ซ้อนทับแบบไม่รีเฟรช
+   3) มี ?fresh=1 ให้ข้าม cache (ใช้ตอนอยากบังคับดึงใหม่) */
+const CACHE_KEY = 'landio_dash_cache_v1';
+const CACHE_TTL = 5 * 60 * 1000; /* 5 นาที */
+
+function loadCached(){
   try {
-    const r = await fetch(API_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({token: API_TOKEN, action: 'get'})
-    });
-    const d = await r.json();
-    if (d && d.updated) return d;
-  } catch(e) { console.warn('API fail → MOCK', e); }
-  return MOCK;
+    const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+    if (c && c.data && c.data.updated) return c.data;
+  } catch(e) {}
+  return null;
+}
+function saveCache(d){
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({t: Date.now(), data: d})); } catch(e) {}
+}
+
+function fetchRemote(){
+  return fetch(API_URL, {
+    method: 'POST',
+    headers: {'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify({token: API_TOKEN, action: 'get'})
+  }).then(r => r.json()).then(d => {
+    if (d && d.updated) { saveCache(d); return d; }
+    throw new Error('bad payload');
+  });
+}
+
+function fetchData(){
+  const cached = loadCached();
+  const force = location.search.indexOf('fresh=1') > -1;
+  if (cached && !force) {
+    /* วาดจอจาก cache ทันที แล้วอัปเดตเบื้องหลัง */
+    (window.requestIdleCallback || setTimeout)(() => {
+      fetchRemote().then(fresh => {
+        state.data = fresh; render();
+        const el = document.getElementById('updated-at');
+        if (el) el.textContent = (fresh.updated || '') + ' · อัปเดตแล้ว';
+      }).catch(() => {});
+    }, 200);
+    return Promise.resolve(cached);
+  }
+  return fetchRemote().catch(e => { console.warn('API fail → MOCK', e); return MOCK; });
 }
 
 fetchData().then(boot);
@@ -713,7 +749,11 @@ function renderApproval(){
     } else if(st==='PENDING'){
       inner+='<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ APPROVED</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ DENIED</button></div>';
     } else {
-      inner+='<div class="ap-done-label">'+(st==='APPROVED'?('→ คิวโพสต์'+(it.note&&it.note.indexOf('มุมที่เลือก')>-1?' · '+esc(it.note):'')):'ปัดแล้ว — จะถูก recycle เป็นมุมใหม่')+'</div>';
+      const when = it.decided_at ? new Date(it.decided_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
+      const next = st==='APPROVED'
+        ? '→ เข้าคิวโพสต์แล้ว (05_ready_to_post ในเครื่อง) · รอบโพสต์อัตโนมัติถัดไปจะหยิบไปลงเพจ'+(when?' · ตัดสินเมื่อ '+when:'')
+        : '→ ปัดแล้ว — ชิ้นนี้จะไม่ถูกผลิต และกลับเข้า Recycle เป็นมุมใหม่ภายใน 7 วัน'+(when?' · ตัดสินเมื่อ '+when:'');
+      inner+='<div class="ap-done-label">'+next+'</div>';
     }
     card.innerHTML=inner;
     grid.appendChild(card);
@@ -747,7 +787,12 @@ async function decide(id, action){
     await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:API_TOKEN,type:'approval',action:action,
         payload:{id:id,state:action,action:action,hook:it?it.hook:'',pillar:it?it.pillar:'',note:'decided by Francisco (dashboard)'}})});
-    if(it) it.state=action;
+    // ดัน pipeline event ขึ้น Sheet ด้วย → เห็นจริงในหน้า Content Pipeline ทันที
+    fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'pipeline',
+        payload:{stage: action==='APPROVED'?'05_ready_to_post':'01_ideas', tag:'APPROVAL',
+                 title:(it&&it.hook)||id, sub:(it?it.id:id)+' · '+(it?it.pillar||'')+' · '+action+' โดย Francisco'}})});
+    if(it){ it.state=action; it.decided_at=new Date().toISOString(); }
     renderApproval();
     const ncA=document.getElementById('nc-appr');
     if(ncA) ncA.textContent=(state.data.approval_queue||[]).filter(x=>(x.state||'PENDING').toUpperCase()==='PENDING').length||'';
@@ -840,19 +885,85 @@ function renderSwipeList(){
   const q = (document.getElementById('sw-search').value||'').toLowerCase();
   const list = sw.filter(s=> (swState.filter==='ALL' || (s.angel_tier||'PENDING')===swState.filter) &&
     (!q || JSON.stringify(s).toLowerCase().includes(q)));
-  document.getElementById('sw-grid').innerHTML = list.length? list.map(s=>
-    '<div class="sw-card"><div class="sw-head"><span class="sw-id">'+esc(s.id)+'</span>'+
+  document.getElementById('sw-grid').innerHTML = list.length? list.map(s=>{
+    const hasMsg = String(s.message||'').length > 40;
+    return '<div class="sw-card"><div class="sw-head"><span class="sw-id">'+esc(s.id)+'</span>'+
     '<span class="chip">'+esc(s.platform||'FB')+'</span>'+
     (s.angel_tier && s.angel_tier!=='PENDING' ? '<span class="chip ok">'+esc(s.angel_tier)+'</span>' : '<span class="chip">ยังไม่จัด tier</span>')+
     '</div><div class="sw-page">'+esc(s.page||'')+'</div>'+
-    '<div class="sw-hook">'+esc(s.hook||'')+'</div>'+
+    '<div class="sw-hook">'+esc((s.hook||String(s.message||'').slice(0,120))+'')+'</div>'+
     '<div class="sw-actions">'+
     (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดต้นฉบับ</a>':'')+
-    (s.breakdown?'<a class="link-btn" href="'+esc(s.breakdown_url||'#')+'" target="_blank">Breakdown'+(s.grill_score?' · '+esc(s.grill_score)+'/10':'')+'</a>':'<span class="chip">รอ breakdown</span>')+
-    '</div></div>').join('') :
-    emptyBox('ยังไม่มีของในคลัง — ส่งลิงก์โพสต์/ads มาในแชท พร้อมคำว่า "เก็บ" หรือ "เก็บ + breakdown"');
+    (hasMsg?'<button class="link-btn" onclick="openRewrite(\''+esc(s.id)+'\')">เขียนเวอร์ชันของเรา →</button>':'<span class="chip">เนื้อหายังไม่ sync</span>')+
+    (s.rewrite?'<span class="chip ok">แก้แล้ว ✓</span>':'')+
+    '</div></div>';
+  }).join('') :
+  emptyBox('ยังไม่มีของในคลัง — ส่งลิงก์โพสต์/ads มาในแชท พร้อมคำว่า "เก็บ" หรือ "เก็บ + breakdown"');
 }
 document.addEventListener('input', e=>{ if(e.target.id==='sw-search') renderSwipeList(); });
+
+/* ---------- Swipe Rewrite Modal — ซ้าย metadata ของเขา | ขวาเวอร์ชันของเรา ---------- */
+function openRewrite(id){
+  const s = (state.data.swipe||[]).find(x=>x.id===id);
+  if(!s) return;
+  const ov = document.createElement('div');
+  ov.id='rw-ov'; ov.onclick = e=>{ if(e.target===ov) closeRewrite(); };
+  ov.innerHTML =
+  '<div id="rw-modal">'+
+    '<div class="rw-col rw-left">'+
+      '<div class="rw-tag">ของเขา — Metadata</div>'+
+      '<div class="rw-meta"><b>เพจ:</b> '+esc(s.page||'—')+' · <b>แพลตฟอร์ม:</b> '+esc(s.platform||'—')+
+        ' · <b>tier:</b> '+esc(s.angel_tier||'PENDING')+' · <b>ประเภท:</b> '+esc(s.content_type||'—')+'</div>'+
+      (s.grill_score?'<div class="rw-meta"><b>Grill score:</b> '+esc(s.grill_score)+'/10</div>':'')+
+      '<div class="rw-meta"><b>Hook ที่เขาใช้:</b><br>'+esc(s.hook||'(ไม่มี)')+'</div>'+
+      '<div class="rw-body">'+esc(String(s.message||'(ยังไม่มีเนื้อหา — sync จากเครื่อง)'))+'</div>'+
+      (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดโพสต์ต้นฉบับ ↗</a>':'')+
+    '</div>'+
+    '<div class="rw-col rw-right">'+
+      '<div class="rw-tag">ของเรา — Rewrite สำหรับคลินิก/SME</div>'+
+      '<textarea id="rw-text" placeholder="เขียนเวอร์ชันของพวกเราตรงนี้ — เปลี่ยนบริบทเป็นคลินิก/SME ของเรา เปลี่ยน hook เป็น pain จริง แล้วปิดด้วย CTA แบบเรา">'+esc(String(s.rewrite||''))+'</textarea>'+
+      '<div class="rw-btns">'+
+        '<button class="ap-yes" onclick="saveRewrite(\''+esc(id)+'\')">✓ เซฟลงคลัง</button>'+
+        '<button class="ap-no" onclick="closeRewrite()">ปิด</button>'+
+      '</div>'+
+      '<div class="rw-hint">เซฟแล้วขึ้นชื่อ "แก้แล้ว ✓" ในการ์ด — กลับมาแก้ซ้ำได้เรื่อยๆ</div>'+
+    '</div>'+
+  '</div>';
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=>ov.classList.add('open'));
+}
+function closeRewrite(){ const ov=document.getElementById('rw-ov'); if(ov){ov.classList.remove('open'); setTimeout(()=>ov.remove(),180);} }
+async function saveRewrite(id){
+  const val = document.getElementById('rw-text').value;
+  try{
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'swipe_rewrite',payload:{id:id,key:'rewrite',value:val}})});
+    const s=(state.data.swipe||[]).find(x=>x.id===id); if(s) s.rewrite=val;
+    closeRewrite(); renderSwipeList();
+  }catch(e){ alert('เซฟไม่ได้ — เช็คเน็ตแล้วลองใหม่'); }
+}
+/* modal styles (monochrome) */
+(function(){
+  const st=document.createElement('style');
+  st.textContent=
+  '#rw-ov{position:fixed;inset:0;background:rgba(26,27,37,.45);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;opacity:0;transition:opacity .18s}'+
+  '#rw-ov.open{opacity:1}'+
+  '#rw-modal{background:#fff;border-radius:12px;width:min(1040px,100%);max-height:88vh;display:flex;overflow:hidden;border:1px solid #cdd2d9}'+
+  '.rw-col{padding:20px;overflow-y:auto;flex:1;min-width:0}'+
+  '.rw-left{border-right:1px solid #cdd2d9;background:#f6f8fa}'+
+  '.rw-tag{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#666d80;margin-bottom:10px}'+
+  '.rw-meta{font-size:12px;color:#36394a;line-height:1.6;margin-bottom:10px}'+
+  '.rw-body{font-size:13px;line-height:1.7;color:#36394a;white-space:pre-wrap;background:#fff;border:1px solid #cdd2d9;border-radius:8px;padding:12px;margin-bottom:10px;max-height:44vh;overflow-y:auto}'+
+  '.rw-right textarea{width:100%;height:46vh;resize:vertical;border:1px solid #cdd2d9;border-radius:8px;padding:12px;font:inherit;font-size:13px;line-height:1.7;color:#1a1b25}'+
+  '.rw-btns{display:flex;gap:8px;margin-top:10px}'+
+  '.rw-btns button{flex:1;padding:10px 0;border-radius:7px;border:1px solid #1a1b25;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}'+
+  '.rw-btns .ap-yes{background:#1a1b25;color:#fff}.rw-btns .ap-no{background:#fff;color:#1a1b25}'+
+  '.rw-hint{font-size:11px;color:#a4abb8;margin-top:8px}'+
+  '.link-btn{display:inline-block;padding:6px 10px;border:1px solid #cdd2d9;border-radius:6px;background:#fff;color:#1a1b25;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none}'+
+  '.link-btn:hover{background:#eceff3}'+
+  '@media(max-width:760px){#rw-modal{flex-direction:column}.rw-left{border-right:none;border-bottom:1px solid #cdd2d9}.rw-body{max-height:24vh}.rw-right textarea{height:32vh}}';
+  document.head.appendChild(st);
+})();
 
 /* ---------- nav ---------- */
 function goto(sec){
