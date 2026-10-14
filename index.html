@@ -499,10 +499,10 @@ h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;let
 /* =====================================================
    DATA — ดึงผ่าน API (fetch) หรือ MOCK ถ้า API ล้ม
 ===================================================== */
-const MOCK = null;
+const MOCK = __DATA_PLACEHOLDER__;
 
 /* CONFIG — API endpoint (Apps Script Web App) */
-const API_URL = "https://script.google.com/macros/s/AKfycbwbwu2_S6G4QZ7aDB9rxeHvGBxrStMlcouQLv0DrVK680j12BDwaDnOSc8RQQEPYy5BDw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyNPvx1UReHvnFhK8n_bkks6H9VMUVUSqAU2W1kR1kJXAsa-zWMBsMF96H4l_3iXQ_Lbw/exec";
 const API_TOKEN = "lg_Q_hLccxlVSnxYy8GZ_JRWwb_LZ5EH90p";
 
 /* fetchData อยู่ด้านล่าง (SPEED LAYER) — cache ก่อน แล้วยิง API เบื้องหลัง */
@@ -887,6 +887,8 @@ function renderSwipeList(){
     (!q || JSON.stringify(s).toLowerCase().includes(q)));
   document.getElementById('sw-grid').innerHTML = list.length? list.map(s=>{
     const hasMsg = String(s.message||'').length > 40;
+    const nRev = (s.rewrite_history ? String(s.rewrite_history).split('|||').filter(Boolean).length : 0) + (s.rewrite?1:0);
+    const nBrk = (s.breakdown_history ? String(s.breakdown_history).split('|||').filter(Boolean).length : 0) + (s.breakdown?1:0);
     return '<div class="sw-card"><div class="sw-head"><span class="sw-id">'+esc(s.id)+'</span>'+
     '<span class="chip">'+esc(s.platform||'FB')+'</span>'+
     (s.angel_tier && s.angel_tier!=='PENDING' ? '<span class="chip ok">'+esc(s.angel_tier)+'</span>' : '<span class="chip">ยังไม่จัด tier</span>')+
@@ -894,51 +896,108 @@ function renderSwipeList(){
     '<div class="sw-hook">'+esc((s.hook||String(s.message||'').slice(0,120))+'')+'</div>'+
     '<div class="sw-actions">'+
     (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดต้นฉบับ</a>':'')+
+    '<button class="link-btn" onclick="openBreakdown(\''+esc(s.id)+'\')">Breakdown →</button>'+
+    (s.breakdown?'<span class="chip ok">ถอดแบบแล้ว'+(nBrk>1?' ·'+nBrk+' v':'')+'</span>':'')+
     (hasMsg?'<button class="link-btn" onclick="openRewrite(\''+esc(s.id)+'\')">เขียนเวอร์ชันของเรา →</button>':'<span class="chip">เนื้อหายังไม่ sync</span>')+
-    (s.rewrite?'<span class="chip ok">แก้แล้ว ✓</span>':'')+
+    (s.rewrite?'<span class="chip ok">แก้แล้ว ✓'+(nRev>1?' ·'+nRev+' v':'')+'</span>':'')+
     '</div></div>';
   }).join('') :
   emptyBox('ยังไม่มีของในคลัง — ส่งลิงก์โพสต์/ads มาในแชท พร้อมคำว่า "เก็บ" หรือ "เก็บ + breakdown"');
 }
 document.addEventListener('input', e=>{ if(e.target.id==='sw-search') renderSwipeList(); });
 
-/* ---------- Swipe Rewrite Modal — ซ้าย metadata ของเขา | ขวาเวอร์ชันของเรา ---------- */
-function openRewrite(id){
+/* ---------- Swipe Modal (breakdown + rewrite) — version history + diff ---------- */
+const SW_FIELDS = {
+  breakdown: { label:'Breakdown — ถอดแบบ', tag:'ถอดแบบ (Breakdown)', placeholder:'ถอดแบบโพสต์นี้: hook ทำงานยังไง · โครงสร้าง (PAS/AIDA) · มุมขาย · emotion ที่โดน · ขโมยอะไรมาใช้ได้', histKey:'breakdown_history', mainKey:'breakdown' },
+  rewrite:   { label:'เขียนเวอร์ชันของเรา', tag:'ของเรา — Rewrite สำหรับคลินิก/SME', placeholder:'เขียนเวอร์ชันของพวกเราตรงนี้ — เปลี่ยนบริบทเป็นคลินิก/SME ของเรา เปลี่ยน hook เป็น pain จริง แล้วปิดด้วย CTA แบบเรา', histKey:'rewrite_history', mainKey:'rewrite' }
+};
+const SEP = '|||';
+function swVersions(s, f){
+  const hist = String(s[f.histKey]||'').split(SEP).filter(Boolean);
+  const main = String(s[f.mainKey]||'');
+  const arr = hist.concat(main?[main]:[]);
+  return arr; // [v1, v2, ...] — ตัวสุดท้าย = เวอร์ชันปัจจุบัน
+}
+function swDiffView(a, b){
+  // diff ง่ายๆ ระดับบรรทัด — บรรทัดที่ต่างไฮไลต์
+  const al=(a||'').split('\n'), bl=(b||'').split('\n');
+  let out='';
+  const max=Math.max(al.length,bl.length);
+  for(let i=0;i<max;i++){
+    if(al[i]===bl[i]) out+='<div class="sw-diff-line">'+esc(bl[i]||'')+'</div>';
+    else{
+      if(al[i]!==undefined) out+='<div class="sw-diff-line del"><s>'+esc(al[i])+'</s></div>';
+      if(bl[i]!==undefined) out+='<div class="sw-diff-line add">'+esc(bl[i])+'</div>';
+    }
+  }
+  return out;
+}
+function openSwipeModal(id, mode){
   const s = (state.data.swipe||[]).find(x=>x.id===id);
   if(!s) return;
+  const f = SW_FIELDS[mode];
+  const vers = swVersions(s, f);
+  let startV = vers.length-1; // เปิดที่เวอร์ชันล่าสุด
   const ov = document.createElement('div');
   ov.id='rw-ov'; ov.onclick = e=>{ if(e.target===ov) closeRewrite(); };
-  ov.innerHTML =
-  '<div id="rw-modal">'+
-    '<div class="rw-col rw-left">'+
-      '<div class="rw-tag">ของเขา — Metadata</div>'+
-      '<div class="rw-meta"><b>เพจ:</b> '+esc(s.page||'—')+' · <b>แพลตฟอร์ม:</b> '+esc(s.platform||'—')+
-        ' · <b>tier:</b> '+esc(s.angel_tier||'PENDING')+' · <b>ประเภท:</b> '+esc(s.content_type||'—')+'</div>'+
-      (s.grill_score?'<div class="rw-meta"><b>Grill score:</b> '+esc(s.grill_score)+'/10</div>':'')+
-      '<div class="rw-meta"><b>Hook ที่เขาใช้:</b><br>'+esc(s.hook||'(ไม่มี)')+'</div>'+
-      '<div class="rw-body">'+esc(String(s.message||'(ยังไม่มีเนื้อหา — sync จากเครื่อง)'))+'</div>'+
-      (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดโพสต์ต้นฉบับ ↗</a>':'')+
-    '</div>'+
-    '<div class="rw-col rw-right">'+
-      '<div class="rw-tag">ของเรา — Rewrite สำหรับคลินิก/SME</div>'+
-      '<textarea id="rw-text" placeholder="เขียนเวอร์ชันของพวกเราตรงนี้ — เปลี่ยนบริบทเป็นคลินิก/SME ของเรา เปลี่ยน hook เป็น pain จริง แล้วปิดด้วย CTA แบบเรา">'+esc(String(s.rewrite||''))+'</textarea>'+
-      '<div class="rw-btns">'+
-        '<button class="ap-yes" onclick="saveRewrite(\''+esc(id)+'\')">✓ เซฟลงคลัง</button>'+
-        '<button class="ap-no" onclick="closeRewrite()">ปิด</button>'+
+  function renderModal(){
+    const v = vers[startV]||'';
+    const prevV = startV>0 ? vers[startV-1] : null;
+    const showDiff = document.getElementById('sw-diff-chk') && document.getElementById('sw-diff-chk').checked && prevV!=null;
+    ov.innerHTML =
+    '<div id="rw-modal">'+
+      '<div class="rw-col rw-left">'+
+        '<div class="rw-tag">ของเขา — Metadata</div>'+
+        '<div class="rw-meta"><b>เพจ:</b> '+esc(s.page||'—')+' · <b>แพลตฟอร์ม:</b> '+esc(s.platform||'—')+
+          ' · <b>tier:</b> '+esc(s.angel_tier||'PENDING')+' · <b>ประเภท:</b> '+esc(s.content_type||'—')+'</div>'+
+        (s.grill_score?'<div class="rw-meta"><b>Grill score:</b> '+esc(s.grill_score)+'/10</div>':'')+
+        '<div class="rw-meta"><b>Hook ที่เขาใช้:</b><br>'+esc(s.hook||'(ไม่มี)')+'</div>'+
+        '<div class="rw-body">'+esc(String(s.message||'(ยังไม่มีเนื้อหา — sync จากเครื่อง)'))+'</div>'+
+        (s.url?'<a class="link-btn" href="'+esc(s.url)+'" target="_blank">เปิดโพสต์ต้นฉบับ ↗</a>':'')+
       '</div>'+
-      '<div class="rw-hint">เซฟแล้วขึ้นชื่อ "แก้แล้ว ✓" ในการ์ด — กลับมาแก้ซ้ำได้เรื่อยๆ</div>'+
-    '</div>'+
-  '</div>';
+      '<div class="rw-col rw-right">'+
+        '<div class="rw-tag">'+esc(f.tag)+'</div>'+
+        (vers.length>1 ?
+          '<div class="sw-verbar">'+
+            '<button class="link-btn sw-verbtn" onclick="swNav(-1)" '+(startV<=0?'disabled':'')+'>‹ v'+(startV)+'</button>'+
+            '<span class="sw-verlabel">v'+(startV+1)+'/'+vers.length+(startV===vers.length-1?' (ล่าสุด)':'')+'</span>'+
+            '<button class="link-btn sw-verbtn" onclick="swNav(1)" '+(startV>=vers.length-1?'disabled':'')+'>v'+(startV+2)+' ›</button>'+
+            '<label class="sw-difflabel"><input type="checkbox" id="sw-diff-chk" '+(showDiff?'checked':'')+' onchange="swRender()">เทียบกับ v'+(startV)+'</label>'+
+          '</div>' : '')+
+        (showDiff ?
+          '<div class="sw-diff">'+swDiffView(prevV, v)+'</div>' :
+          '<textarea id="rw-text" placeholder="'+esc(f.placeholder)+'">'+esc(v)+'</textarea>')+
+        '<div class="rw-btns">'+
+          '<button class="ap-yes" onclick="saveSwipe(\''+esc(id)+'\',\''+mode+'\')">✓ เซฟเป็นเวอร์ชันใหม่</button>'+
+          '<button class="ap-no" onclick="closeRewrite()">ปิด</button>'+
+        '</div>'+
+        '<div class="rw-hint">เซฟทุกครั้ง = สร้างเวอร์ชันใหม่ ของเก่าไม่หาย — สลับ v ดูย้อนหลัง/เทียบ diff ได้ · '+(vers.length?'ปัจจุบัน v'+vers.length:'ยังไม่มีเวอร์ชัน')+'</div>'+
+      '</div>'+
+    '</div>';
+  }
+  window.swRender = renderModal;
+  window.swNav = function(d){ startV=Math.min(Math.max(startV+d,0),vers.length-1); renderModal(); };
+  renderModal();
   document.body.appendChild(ov);
   requestAnimationFrame(()=>ov.classList.add('open'));
 }
+function openBreakdown(id){ openSwipeModal(id,'breakdown'); }
+function openRewrite(id){ openSwipeModal(id,'rewrite'); }
 function closeRewrite(){ const ov=document.getElementById('rw-ov'); if(ov){ov.classList.remove('open'); setTimeout(()=>ov.remove(),180);} }
-async function saveRewrite(id){
-  const val = document.getElementById('rw-text').value;
+async function saveSwipe(id, mode){
+  const f = SW_FIELDS[mode];
+  const ta = document.getElementById('rw-text');
+  if(!ta){ alert('กำลังดู diff อยู่ — ปิดเทียบก่อนเซฟ'); return; }
+  const val = ta.value;
   try{
     await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({token:API_TOKEN,type:'swipe_rewrite',payload:{id:id,key:'rewrite',value:val}})});
-    const s=(state.data.swipe||[]).find(x=>x.id===id); if(s) s.rewrite=val;
+      body:JSON.stringify({token:API_TOKEN,type:'swipe_rewrite',payload:{id:id,key:f.mainKey,value:val,historyKey:f.histKey}})});
+    const s=(state.data.swipe||[]).find(x=>x.id===id);
+    if(s){
+      const old = String(s[f.mainKey]||'');
+      if(old) s[f.histKey] = String(s[f.histKey]||'') ? (s[f.histKey]+SEP+old) : old;
+      s[f.mainKey]=val;
+    }
     closeRewrite(); renderSwipeList();
   }catch(e){ alert('เซฟไม่ได้ — เช็คเน็ตแล้วลองใหม่'); }
 }
@@ -959,9 +1018,17 @@ async function saveRewrite(id){
   '.rw-btns button{flex:1;padding:10px 0;border-radius:7px;border:1px solid #1a1b25;font-weight:700;font-size:13px;cursor:pointer;font-family:inherit}'+
   '.rw-btns .ap-yes{background:#1a1b25;color:#fff}.rw-btns .ap-no{background:#fff;color:#1a1b25}'+
   '.rw-hint{font-size:11px;color:#a4abb8;margin-top:8px}'+
+  '.sw-verbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}'+
+  '.sw-verbtn{padding:4px 10px !important}.sw-verbtn:disabled{opacity:.35;cursor:default}'+
+  '.sw-verlabel{font-size:12px;font-weight:700;color:#1a1b25;font-family:IBM Plex Mono,monospace}'+
+  '.sw-difflabel{display:flex;align-items:center;gap:5px;font-size:11px;color:#666d80;margin-left:auto;cursor:pointer}'+
+  '.sw-diff{font:12px/1.7 IBM Plex Mono,monospace;background:#fff;border:1px solid #cdd2d9;border-radius:8px;padding:12px;margin-bottom:10px;max-height:46vh;overflow-y:auto;white-space:pre-wrap}'+
+  '.sw-diff-line{padding:1px 6px}.sw-diff-line.del{background:#eceff3;color:#666d80;text-decoration:line-through}'+
+  '.sw-diff-line.add{background:#1a1b25;color:#fff}'+
   '.link-btn{display:inline-block;padding:6px 10px;border:1px solid #cdd2d9;border-radius:6px;background:#fff;color:#1a1b25;font-size:12px;font-weight:600;cursor:pointer;text-decoration:none}'+
   '.link-btn:hover{background:#eceff3}'+
-  '@media(max-width:760px){#rw-modal{flex-direction:column}.rw-left{border-right:none;border-bottom:1px solid #cdd2d9}.rw-body{max-height:24vh}.rw-right textarea{height:32vh}}';
+  '@media(max-width:760px){#rw-modal{flex-direction:column}.rw-left{border-right:none;border-bottom:1px solid #cdd2d9}.rw-body{max-height:24vh}.rw-right textarea{height:32vh}}'+
+  '@media(max-width:760px){.sw-actions{flex-wrap:wrap;gap:6px}}';
   document.head.appendChild(st);
 })();
 
