@@ -159,6 +159,8 @@ h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;let
 .skel .sk-t{font-family:var(--font-mono);font-size:11px;color:var(--fog);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px}
 .skel .sk-l{font-size:12.5px;color:#d6d8e0;line-height:1.55}
 .skel .sk-l b{color:#fff;font-weight:600}
+.sk-copy{margin-top:8px;background:#fff;color:#1a1b25;border:1px solid #666d80;border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit}
+.sk-copy:hover{background:#eceff3}
 
 /* ===== Clients ===== */
 .mrr-panel{display:flex;gap:32px;align-items:center;flex-wrap:wrap;background:var(--onyx);border-radius:var(--r-card);padding:22px 24px;margin-bottom:14px}
@@ -634,7 +636,7 @@ function render(){
     {k:'T3',n:'Tier 3 · Deep',d:'เจาะจากงานวิจัย/รายงาน — reverse engineer insight'}
   ];
   document.getElementById('tiers').innerHTML = tiers.map(t=>{
-    const n = d.pains.filter(p=>p.tier===t.k).length;
+    const n = d.pains.filter(p=>String(p.tier).replace(/\D/g,'')===t.k.slice(1)).length;
     return '<div class="tier-card"><div class="t-name">'+t.n+'</div><div class="t-desc">'+t.d+'</div><div class="t-n">'+n+'</div></div>';
   }).join('');
   const niches = [...new Set(d.pains.map(p=>p.niche))];
@@ -861,13 +863,27 @@ function renderPains(){
   document.getElementById('pain-list').innerHTML = list.length? list.map(painCard).join('') : emptyBox('ไม่มีการ์ดในหมวดนี้');
 }
 function painCard(p){
+  const skel = (p.skel_title||p.skel_pas);
   return '<div class="pain-card"><div class="pain-head"><span class="pain-id">'+esc(p.id)+'</span>'+
     '<span class="chip">'+esc(p.tierName)+'</span><span class="chip">'+esc(p.niche)+'</span>'+heat(p.heat)+'</div>'+
     '<div class="pain-title">'+esc(p.title)+'</div>'+
     '<div class="pain-meta">'+esc(p.symptom)+'</div>'+
     (p.url?'<div class="pain-src">SOURCE · <a href="'+esc(p.url)+'" target="_blank">'+esc(p.url)+'</a></div>':'<div class="pain-src">[HYPOTHESIS] '+esc(p.validate||'')+'</div>')+
-    '<div class="skel"><div class="sk-t">Copy skeleton</div><div class="sk-l"><b>'+esc(p.skel_title)+'</b><br>'+esc(p.skel_pas)+'</div></div>'+
+    (skel?'<div class="skel"><div class="sk-t">Copy skeleton</div><div class="sk-l"><b>'+esc(p.skel_title)+'</b><br>'+esc(p.skel_pas)+'</div>'+
+    '<button class="sk-copy" onclick="copySkel(this)" data-id="'+esc(p.id)+'">คัดลอก skeleton</button></div>':'')+
     '</div>';
+}
+function copySkel(btn){
+  const p=(state.data.pains||[]).find(x=>x.id===btn.dataset.id);
+  if(!p)return;
+  const txt='Title: '+(p.skel_title||'')+'\n\nPAS: '+(p.skel_pas||'');
+  const done=()=>{const old=btn.textContent;btn.textContent='คัดลอกแล้ว ✓';setTimeout(()=>{btn.textContent=old},1500)};
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(txt).then(done).catch(()=>{fallbackCopy(txt);done()})}
+  else{fallbackCopy(txt);done()}
+}
+function fallbackCopy(txt){
+  const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';
+  document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(e){}document.body.removeChild(ta);
 }
 
 /* ---------- swipe file ---------- */
