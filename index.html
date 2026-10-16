@@ -749,13 +749,16 @@ function renderApproval(){
         '<label class="ap-angle"><input type="checkbox" value="'+a[0]+'" onchange="apChosen(\''+it.id+'\',this)"> <b>'+a[0]+'</b> '+a[1]+'</label>').join('')+'</div>'+
         '<div class="ap-btns"><button class="ap-yes" id="apbtn-'+it.id+'" disabled onclick="decideRecycle(\''+it.id+'\')">✓ ผลิตมุมที่เลือก</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ ปัดทิ้ง</button></div>';
     } else if(st==='PENDING'){
-      inner+='<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ APPROVED</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ DENIED</button></div>';
+      inner+='<textarea class="ap-note" id="ap-note-'+it.id+'" rows="2" placeholder="QA note (ถ้ามี — เช่น แก้ hook / งดขายตรง / เปลี่ยนภาพ)"></textarea>'+
+        '<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ QA ผ่าน</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ QA ไม่ผ่าน</button></div>'+
+        '<div class="ap-btns"><button class="ap-notebtn" onclick="sendNote(\''+it.id+'\')">💬 ส่งโน้ตเฉยๆ (ยังไม่ตัดสิน)</button></div>';
     } else {
       const when = (it.decided_at && !isNaN(new Date(it.decided_at))) ? new Date(it.decided_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       const next = st==='APPROVED'
         ? '→ เข้าคิวโพสต์แล้ว (05_ready_to_post ในเครื่อง) · รอบโพสต์อัตโนมัติถัดไปจะหยิบไปลงเพจ'+(when?' · ตัดสินเมื่อ '+when:'')
         : '→ ปัดแล้ว — ชิ้นนี้จะไม่ถูกผลิต และกลับเข้า Recycle เป็นมุมใหม่ภายใน 7 วัน'+(when?' · ตัดสินเมื่อ '+when:'');
       inner+='<div class="ap-done-label">'+next+'</div>';
+      if(it.note && it.note.indexOf('decided')===-1 && it.note.indexOf('มุมที่เลือก')===-1) inner+='<div class="ap-why"><b>โน้ต QA:</b> '+esc(it.note)+'</div>';
     }
     card.innerHTML=inner;
     grid.appendChild(card);
@@ -783,12 +786,30 @@ async function decideRecycle(id){
   }catch(e){ alert('เชื่อม API ไม่ได้ — กดรีเฟรชแล้วลองใหม่'); }
 }
 
+function apNote(id){
+  const el=document.getElementById('ap-note-'+id);
+  return (el&&el.value.trim())?('QA: '+el.value.trim()+' · โดย Francisco (dashboard)'):'decided by Francisco (dashboard)';
+}
+async function sendNote(id){
+  const it=(state.data.approval_queue||[]).find(x=>x.id===id);
+  const note=(document.getElementById('ap-note-'+id)||{}).value||'';
+  if(!note.trim()){ alert('พิมพ์โน้ตก่อนครับ'); return; }
+  try{
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'approval',action:'NOTE',
+        payload:{id:id,state:'PENDING',action:'NOTE',hook:it?it.hook:'',pillar:it?it.pillar:'',
+                 note:'QA: '+note.trim()+' · โดย Francisco (dashboard)'}})});
+    if(it){ it.note='QA: '+note.trim()+' · โดย Francisco (dashboard)'; }
+    renderApproval();
+  }catch(e){ alert('เชื่อม API ไม่ได้ — กดรีเฟรชแล้วลองใหม่'); }
+}
+
 async function decide(id, action){
   const it=(state.data.approval_queue||[]).find(x=>x.id===id);
   try{
     await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:API_TOKEN,type:'approval',action:action,
-        payload:{id:id,state:action,action:action,hook:it?it.hook:'',pillar:it?it.pillar:'',note:'decided by Francisco (dashboard)'}})});
+        payload:{id:id,state:action,action:action,hook:it?it.hook:'',pillar:it?it.pillar:'',note:apNote(id)}})});
     // ดัน pipeline event ขึ้น Sheet ด้วย → เห็นจริงในหน้า Content Pipeline ทันที
     fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({token:API_TOKEN,type:'pipeline',
@@ -825,6 +846,10 @@ apStyle.textContent=
  '.ap-btns .ap-no{background:#fff;color:#1a1b25}.ap-btns .ap-no:hover{background:#eceff3}'+
  '.ap-btns button:disabled{opacity:.5;cursor:wait}'+
  '.ap-done-label{text-align:center;font-size:12px;color:#a4abb8;padding:4px 0 0}'+
+ '.ap-note{width:100%;box-sizing:border-box;border:1px solid #cdd2d9;border-radius:7px;padding:8px 10px;font-family:inherit;font-size:12px;color:#1a1b25;resize:vertical;background:#fff}'+
+ '.ap-note:focus{outline:none;border-color:#1a1b25}'+
+ '.ap-notebtn{width:100%;padding:7px 0;border-radius:7px;border:1px dashed #a4abb8;background:#fff;color:#5f6672;font-size:12px;cursor:pointer;font-family:inherit}'+
+ '.ap-notebtn:hover{background:#f6f8fa;color:#1a1b25}'+
  '.ap-angles{display:flex;flex-wrap:wrap;gap:6px}'+
  '.ap-angle{display:flex;align-items:center;gap:5px;font-size:12px;color:#1a1b25;border:1px solid #cdd2d9;border-radius:6px;padding:6px 9px;cursor:pointer;user-select:none}'+
  '.ap-angle:hover{background:#f6f8fa}'+
