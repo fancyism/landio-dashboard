@@ -484,7 +484,7 @@ h1.page-title{font-family:var(--font-display);font-size:30px;font-weight:600;let
       <div class="page-head">
         <div>
           <h1 class="page-title">คิวอนุมัติคอนเทนต์</h1>
-          <div class="page-desc">งานที่ AI ผลิตเสร็จรอคำตัดสิน — APPROVED = เข้าคิวโพสต์ · DENIED = ปัดไป recycle ใหม่</div>
+          <div class="page-desc">งานที่ AI ผลิตเสร็จรอคำตัดสิน — APPROVED = เข้าคิวโพสต์ · DENIED = ปัดไป recycle ใหม่ · พิมพ์โน้ตถึง Agent ได้ทุกการ์ด (Agent อ่านและตอบกลับที่การ์ดเดียวกัน)</div>
         </div>
       </div>
       <div class="ap-grid" id="ap-grid"></div>
@@ -751,7 +751,10 @@ function renderApproval(){
     } else if(st==='PENDING'){
       inner+='<textarea class="ap-note" id="ap-note-'+it.id+'" rows="2" placeholder="QA note (ถ้ามี — เช่น แก้ hook / งดขายตรง / เปลี่ยนภาพ)"></textarea>'+
         '<div class="ap-btns"><button class="ap-yes" onclick="decide(\''+it.id+'\',\'APPROVED\')">✓ QA ผ่าน</button><button class="ap-no" onclick="decide(\''+it.id+'\',\'DENIED\')">✕ QA ไม่ผ่าน</button></div>'+
-        '<div class="ap-btns"><button class="ap-notebtn" onclick="sendNote(\''+it.id+'\')">💬 ส่งโน้ตเฉยๆ (ยังไม่ตัดสิน)</button></div>';
+        '<div class="ap-btns"><button class="ap-notebtn" onclick="sendNote(\''+it.id+'\')">💬 ส่งโน้ตเฉยๆ (ยังไม่ตัดสิน)</button></div>'+
+        '<div class="ap-btns"><button class="ap-notebtn" onclick="noteAgent(\''+it.id+'\')">🤖 พิมพ์ถึง Agent</button></div>';
+      const agentReplies=agentNotesFor(it.id);
+      if(agentReplies) inner+='<div class="ap-agentthread"><b>🤖 Agent ตอบกลับ:</b>'+agentReplies+'</div>';
     } else {
       const when = (it.decided_at && !isNaN(new Date(it.decided_at))) ? new Date(it.decided_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '';
       const next = st==='APPROVED'
@@ -789,6 +792,35 @@ async function decideRecycle(id){
 function apNote(id){
   const el=document.getElementById('ap-note-'+id);
   return (el&&el.value.trim())?('QA: '+el.value.trim()+' · โดย Francisco (dashboard)'):'decided by Francisco (dashboard)';
+}
+
+/* ---------- NOTE → AGENT (โน้ตถึง Agent + Agent ตอบกลับที่การ์ดเดียวกัน) ----------
+   ทิศลง: ฟรานพิมพ์ "พิมพ์ถึง Agent" → เซฟเป็น AGENTMSG:<id> ใน Meta tab → approval_sync ดึงกลับเครื่อง → Agent อ่าน
+   ทิศขึ้น: Agent เขียน AGENTREPLY:<id> ลง Meta tab → การ์ดโชว์ "Agent ตอบกลับ" ทันที */
+function metaMap(){
+  return (state.data && state.data.meta) || {};
+}
+function agentNotesFor(id){
+  const all=(state.data && state.data.meta) || {};
+  const fromItem=(function(){ const it=(state.data.approval_queue||[]).find(x=>x.id===id); return it||{}; })();
+  const msgs=(all['AGENTMSG:'+id]||fromItem.agent_msg||'').trim();
+  const reps=(all['AGENTREPLY:'+id]||fromItem.agent_reply||'').trim();
+  let html='';
+  if(msgs) html+='<div class="ap-agentmsg">'+esc(msgs)+'</div>';
+  if(reps) html+='<div class="ap-agentrep">'+esc(reps)+'</div>';
+  return html;
+}
+async function noteAgent(id){
+  const it=(state.data.approval_queue||[]).find(x=>x.id===id);
+  const note=(document.getElementById('ap-note-'+id)||{}).value||'';
+  if(!note.trim()){ alert('พิมพ์ข้อความถึง Agent ก่อนครับ'); return; }
+  const btn=event&&event.target; if(btn){btn.disabled=true; btn.textContent='ส่งแล้ว…';}
+  try{
+    await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({token:API_TOKEN,type:'meta',payload:{key:'AGENTMSG:'+id,
+        value:note.trim()+' — Francisco · '+new Date().toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}})});
+    if(btn){btn.textContent='✓ ส่งถึง Agent แล้ว — เขาจะตอบที่การ์ดนี้'; setTimeout(function(){btn.disabled=false; btn.textContent='🤖 พิมพ์ถึง Agent';},4000);}
+  }catch(e){ alert('เชื่อม API ไม่ได้ — กดรีเฟรชแล้วลองใหม่'); if(btn){btn.disabled=false;} }
 }
 async function sendNote(id){
   const it=(state.data.approval_queue||[]).find(x=>x.id===id);
@@ -850,6 +882,9 @@ apStyle.textContent=
  '.ap-note:focus{outline:none;border-color:#1a1b25}'+
  '.ap-notebtn{width:100%;padding:7px 0;border-radius:7px;border:1px dashed #a4abb8;background:#fff;color:#5f6672;font-size:12px;cursor:pointer;font-family:inherit}'+
  '.ap-notebtn:hover{background:#f6f8fa;color:#1a1b25}'+
+ '.ap-agentthread{border-top:1px dashed #cdd2d9;padding-top:8px;font-size:12px;color:#36394a;display:flex;flex-direction:column;gap:6px}'+
+ '.ap-agentmsg{background:#f6f8fa;border-left:3px solid #272835;border-radius:0 7px 7px 0;padding:6px 9px;white-space:pre-wrap}'+
+ '.ap-agentrep{background:#fff;border-left:3px solid #3d6b4f;border-radius:0 7px 7px 0;padding:6px 9px;white-space:pre-wrap;color:#1a1b25}'+
  '.ap-angles{display:flex;flex-wrap:wrap;gap:6px}'+
  '.ap-angle{display:flex;align-items:center;gap:5px;font-size:12px;color:#1a1b25;border:1px solid #cdd2d9;border-radius:6px;padding:6px 9px;cursor:pointer;user-select:none}'+
  '.ap-angle:hover{background:#f6f8fa}'+
